@@ -13,8 +13,9 @@
     "serve": "node src/server.js",
     "test": "node --test",
     "eval": "node scripts/eval.js --runs 3",
-    "build:n8n": "node scripts/build-n8n.js",
-    "edge": "node src/index.js --input data/edge-cases.json --out output/edge-cases --concurrency 1"
+    "build:n8n": "node scripts/build-n8n.js && node scripts/verify-n8n.js",
+    "edge": "node src/index.js --input data/edge-cases.json --out output/edge-cases --concurrency 1",
+    "verify:n8n": "node scripts/verify-n8n.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

@@ -59,7 +59,8 @@ npm run batch              # the 5 fixtures      -> output/records.json
 npm run edge               # the 5 edge cases    -> output/edge-cases/
 npm run eval               # accuracy + run-to-run consistency
 npm run serve              # webhook trigger on :3000
-npm run build:n8n          # regenerate the n8n workflow from src/
+npm run build:n8n          # regenerate the n8n workflow from src/ (+ verify)
+npm run verify:n8n         # assert the workflow agrees with the code
 ```
 
 Webhook ingestion:
@@ -137,6 +138,7 @@ src/
   sinks/index.js      file + webhook.site persistence
 scripts/
   build-n8n.js        generates the n8n workflow from src/
+  verify-n8n.js       simulates the n8n runtime; asserts both agree
   eval.js             accuracy AND run-to-run consistency
 test/routing.test.js  15 tests, no API key needed
 docs/                 PROMPTS.md, ARCHITECTURE.md, N8N-SETUP.md

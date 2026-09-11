@@ -73,6 +73,17 @@ provides orchestration, retries and an operator-legible picture of the flow;
 the modules provide the logic and the unit tests. Regenerating the workflow is
 one command, so the canvas cannot silently diverge from the code.
 
+A generator is a claim, not a guarantee, and mine was wrong once: when I
+changed the triage prompt to emit a belief distribution, the Node validator
+was updated and the n8n one was not, so the workflow would have failed schema
+validation on all five records and routed every one to the fail-safe queue.
+`npm run verify:n8n` now closes that gap — it extracts each Code node, runs it
+against a faked n8n runtime with the real fixtures, and asserts the workflow
+reaches the same queues as the Node implementation. It also checks the static
+things that bit me: no `require()` (the Code sandbox blocks builtins), no
+hardcoded key, the model names matching `.env`, and every queue that routing
+can produce having a Switch branch to land in.
+
 ---
 
 ## 2. Where the LLM is, and is not
@@ -420,5 +431,6 @@ npm run batch              # the 5 assessment fixtures -> output/records.json
 npm run edge               # the 5 adversarial cases   -> output/edge-cases/
 npm run eval               # accuracy + run-to-run consistency
 npm run serve              # webhook trigger on :3000
-npm run build:n8n          # regenerate the n8n workflow from src/
+npm run build:n8n          # regenerate the n8n workflow from src/ (+ verify)
+npm run verify:n8n         # assert the workflow agrees with the code
 ```

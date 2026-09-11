@@ -18,7 +18,15 @@ import {
 } from '../src/llm/prompts.js';
 import { readFile } from 'node:fs/promises';
 
-const MODEL = 'llama-3.3-70b-versatile';
+// Kept in step with .env. The briefing runs on the smaller model: summarising
+// an already-structured record is an easier task than classifying free text,
+// and on Groq it sits in a separate rate-limit bucket.
+const MODEL = process.env.LLM_MODEL || 'openai/gpt-oss-120b';
+const SUMMARY_MODEL = process.env.LLM_SUMMARY_MODEL || 'openai/gpt-oss-20b';
+// gpt-oss spends internal reasoning tokens out of max_tokens; at the default
+// effort the briefing call burns its whole budget thinking and returns an
+// empty completion, which the API reports as json_validate_failed.
+const REASONING_EFFORT = 'low';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 const samples = JSON.parse(await readFile(new URL('../data/inbound.json', import.meta.url), 'utf8'));
@@ -45,7 +53,7 @@ const noop = (name, position, color = 7) => ({
   notesInFlow: true,
 });
 
-const groqCall = (name, position, maxTokens, temperature) => ({
+const groqCall = (name, position, maxTokens, temperature, model = MODEL) => ({
   parameters: {
     method: 'POST',
     url: GROQ_URL,
@@ -67,7 +75,7 @@ const groqCall = (name, position, maxTokens, temperature) => ({
   retryOnFail: true,
   maxTries: 3,
   waitBetweenTries: 1500,
-  notes: `Groq ${MODEL}, temperature ${temperature}, max_tokens ${maxTokens}. Header Auth credential supplies "Authorization: Bearer <GROQ_API_KEY>".`,
+  notes: `Groq ${model}, temperature ${temperature}, max_tokens ${maxTokens}. Header Auth credential supplies "Authorization: Bearer <GROQ_API_KEY>".`,
 });
 
 /* ------------------------------------------------------------------ nodes */
@@ -146,7 +154,8 @@ return {
     groq_body: {
       model: ${JSON.stringify(MODEL)},
       temperature: 0,
-      max_tokens: 900,
+      max_tokens: 1600,
+      reasoning_effort: ${JSON.stringify(REASONING_EFFORT)},
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: SYSTEM },
@@ -157,7 +166,7 @@ return {
 };`,
     [100, 190]
   ),
-  groqCall('Groq: Triage', [320, 190], 900, 0),
+  groqCall('Groq: Triage', [320, 190], 1600, 0),
   code(
     'Validate Triage Output',
     `// The LLM is an untrusted input source. Enum violations are a hard failure;
@@ -180,10 +189,39 @@ const conf = (v) => {
   return Math.min(1, Math.max(0, Math.round((n > 1 && n <= 100 ? n / 100 : n) * 100) / 100));
 };
 
+// Prompt v1.3 returns a belief distribution rather than a scalar confidence
+// (v1.2 asked for a number and the model returned 0.96 for every fixture,
+// which silently disabled the low-confidence escalation trigger). Argmax is
+// the decision, its score is the confidence, the gap to second place is the
+// margin. The v1.2 scalar shape is still accepted as a fallback.
+const derive = (scores) => {
+  if (!scores || typeof scores !== 'object') return null;
+  const rows = Object.entries(scores)
+    .filter(([k]) => CATEGORIES.includes(k))
+    .map(([k, v]) => [k, Number(v)])
+    .filter(([, v]) => isFinite(v) && v >= 0);
+  if (rows.length < 2) return null;
+  const total = rows.reduce((s, [, v]) => s + v, 0);
+  if (total <= 0) return null;
+  const norm = rows.map(([k, v]) => [k, Math.round((v / total) * 100) / 100])
+                   .sort((a, b) => b[1] - a[1]);
+  return {
+    category: norm[0][0],
+    confidence: norm[0][1],
+    scores: Object.fromEntries(norm),
+    runner_up: norm[1] ? norm[1][0] : null,
+    margin: Math.round((norm[0][1] - (norm[1] ? norm[1][1] : 0)) * 100) / 100,
+  };
+};
+
+const d = derive(raw.category_scores);
+const category = d ? d.category : raw.category;
+const confidence = d ? d.confidence : conf(raw.confidence);
+
 const issues = [];
-if (!CATEGORIES.includes(raw.category)) issues.push('bad category: ' + raw.category);
+if (!CATEGORIES.includes(category)) issues.push('bad category: ' + category);
 if (!PRIORITIES.includes(raw.priority)) issues.push('bad priority: ' + raw.priority);
-if (conf(raw.confidence) === null) issues.push('bad confidence: ' + raw.confidence);
+if (confidence === null || confidence === undefined) issues.push('bad confidence: ' + raw.confidence);
 if (!raw.core_issue) issues.push('core_issue empty');
 if (issues.length) return { json: { ...req, _schema_error: issues.join('; ') } };
 
@@ -195,9 +233,12 @@ return {
     model: $json.model ?? ${JSON.stringify(MODEL)},
     tokens_triage: $json.usage?.total_tokens ?? null,
     triage: {
-      category: raw.category,
+      category: category,
       priority: raw.priority,
-      confidence: conf(raw.confidence),
+      confidence: confidence,
+      category_scores: d ? d.scores : null,
+      runner_up_category: d ? d.runner_up : null,
+      decision_margin: d ? d.margin : null,
       core_issue: raw.core_issue,
       entities: {
         account_id: e.account_id ?? null,
@@ -348,13 +389,14 @@ const user = [
 ].join('\\n');
 
 return { json: { ...$json, groq_body: {
-  model: ${JSON.stringify(MODEL)}, temperature: 0.2, max_tokens: 220,
+  model: ${JSON.stringify(SUMMARY_MODEL)}, temperature: 0.2, max_tokens: 800,
+  reasoning_effort: ${JSON.stringify(REASONING_EFFORT)},
   response_format: { type: 'json_object' },
   messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }],
 } } };`,
     [1200, 190]
   ),
-  groqCall('Groq: Briefing', [1420, 190], 220, 0.2),
+  groqCall('Groq: Briefing', [1420, 190], 800, 0.2, SUMMARY_MODEL),
   code(
     'Assemble Record',
     `// Step 5 - the structured record a downstream team consumes.
@@ -398,6 +440,10 @@ return { json: {
   confidence: t.confidence ?? 0,
   confidence_adjusted: e.confidence_adjusted,
 
+  category_scores: t.category_scores ?? null,
+  runner_up_category: t.runner_up_category ?? null,
+  decision_margin: t.decision_margin ?? null,
+
   core_issue: t.core_issue ?? null,
   entities: t.entities ?? null,
   urgency_signal: t.urgency_signal ?? 'elevated',
@@ -418,6 +464,7 @@ return { json: {
   pipeline: {
     prompt_version: src.prompt_version ?? ${JSON.stringify(PROMPT_VERSION)},
     model: src.model ?? ${JSON.stringify(MODEL)},
+    summary_model: ${JSON.stringify(SUMMARY_MODEL)},
     llm_calls: 2,
     orchestrator: 'n8n',
     schema_error: src._schema_error ?? null,
