@@ -42,17 +42,27 @@ Both HTTP Request nodes (`Groq: Triage` and `Groq: Briefing`) use a generic
 Click **Execute Workflow** (bottom centre). The Manual Trigger replays all
 five assessment fixtures.
 
-Expect roughly 2–4 minutes on the free tier: the Groq free plan caps
-`gpt-oss-120b` at 8,000 tokens/minute and each record uses ~2,600 across two
-calls. The HTTP nodes are configured with `retryOnFail`, 3 tries, 1.5s
-between, which absorbs the 429s. If a node still exhausts its retries, click
-**Execute Workflow** again — records are content-addressed, so re-running is
-safe.
+**Expect about 2 minutes.** The Groq free tier caps `gpt-oss-120b` at 8,000
+tokens/minute and the triage call costs ~2.6k, so the `Groq: Triage` node is
+configured to send **one request every 21 seconds**
+(*Options → Batching*, batch size 1). Without that pacing n8n fires all five
+items at once and everything after the second returns 429. `Groq: Briefing`
+runs on the smaller model in a separate rate-limit bucket and is paced at 2s.
+Both nodes also retry 5 times, 15s apart, as a safety net.
 
-> The Node implementation handles this better: it paces itself with a rolling
-> 60-second token budget instead of discovering the limit through 429s. n8n
-> has no equivalent built-in, which is a genuine limitation of doing the
-> orchestration there rather than in code — noted in ARCHITECTURE.md §6.
+This whole path was verified headlessly before you touched it:
+
+```
+npx n8n import:workflow --input=n8n/arcvault-triage.workflow.json
+npx n8n execute --id arcvault-triage-001
+```
+
+…which completed with `"status": "success"` and produced all five queues.
+
+> The Node implementation paces itself better: a rolling 60-second budget over
+> actual token usage, rather than a fixed interval. n8n can only space requests
+> evenly. That is a real limitation of putting the orchestration in n8n rather
+> than in code — noted in ARCHITECTURE.md §6.
 
 ## 5. What you should see
 
@@ -66,6 +76,10 @@ All five records flow through and fan out at **Switch: Destination Queue**:
 | IT/Security | REQ-004 |
 | Human-Escalation | REQ-005 |
 | Unrouted | *(empty — it exists so nothing can be dropped)* |
+
+`Collect Records` runs **once per queue branch** that received a record, not
+once overall — n8n executes a node once per incoming connection. Click through
+the runs to see all five. The combined view is `output/records.json`.
 
 ## 6. Optional: a real downstream sink
 

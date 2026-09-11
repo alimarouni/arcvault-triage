@@ -1,4 +1,5 @@
 {
+  "id": "arcvault-triage-001",
   "name": "ArcVault - AI Intake & Triage",
   "nodes": [
     {
@@ -82,7 +83,13 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.groq_body) }}",
         "options": {
-          "timeout": 30000,
+          "timeout": 60000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 21000
+            }
+          },
           "response": {
             "response": {
               "neverError": false
@@ -99,9 +106,9 @@
         190
       ],
       "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 1500,
-      "notes": "Groq openai/gpt-oss-120b, temperature 0, max_tokens 1600. Header Auth credential supplies \"Authorization: Bearer <GROQ_API_KEY>\"."
+      "maxTries": 5,
+      "waitBetweenTries": 15000,
+      "notes": "Groq openai/gpt-oss-120b, temperature 0, max_tokens 1600, one request every 21s to stay inside the free-tier token budget. Header Auth credential supplies \"Authorization: Bearer <GROQ_API_KEY>\"."
     },
     {
       "parameters": {
@@ -169,7 +176,13 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.groq_body) }}",
         "options": {
-          "timeout": 30000,
+          "timeout": 60000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 2000
+            }
+          },
           "response": {
             "response": {
               "neverError": false
@@ -186,9 +199,9 @@
         190
       ],
       "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 1500,
-      "notes": "Groq openai/gpt-oss-20b, temperature 0.2, max_tokens 800. Header Auth credential supplies \"Authorization: Bearer <GROQ_API_KEY>\"."
+      "maxTries": 5,
+      "waitBetweenTries": 15000,
+      "notes": "Groq openai/gpt-oss-20b, temperature 0.2, max_tokens 800, one request every 2s to stay inside the free-tier token budget. Header Auth credential supplies \"Authorization: Bearer <GROQ_API_KEY>\"."
     },
     {
       "parameters": {
@@ -455,7 +468,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Every branch converges here so one execution yields one reviewable table.\nreturn $input.all();"
+        "jsCode": "// Every queue branch converges here. Note that n8n runs a node once per\n// incoming connection, so this node shows one run per queue that received a\n// record rather than a single combined table - click through the runs to see\n// all of them. A Merge node would combine them into one, at the cost of six\n// more wires on the canvas; the JSON deliverable in output/records.json is\n// the combined view, so the extra nodes did not earn their place here.\nreturn $input.all();"
       },
       "id": "code-20",
       "name": "Collect Records",
@@ -780,5 +793,6 @@
     "executionOrder": "v1"
   },
   "pinData": {},
-  "tags": []
+  "tags": [],
+  "versionId": "v1"
 }

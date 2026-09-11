@@ -53,7 +53,18 @@ const noop = (name, position, color = 7) => ({
   notesInFlow: true,
 });
 
-const groqCall = (name, position, maxTokens, temperature, model = MODEL) => ({
+/**
+ * @param batchIntervalMs  Pace requests so a batch run stays inside the
+ *   provider's tokens-per-minute cap. Groq's free tier allows 8,000 TPM on
+ *   gpt-oss-120b and the triage call costs ~2.6k, so ~3 per minute is the
+ *   ceiling: without pacing, n8n fires all five items at once and every one
+ *   after the second returns 429. This is the n8n-native equivalent of the
+ *   rolling token budget in src/llm/client.js - cruder, because n8n can only
+ *   space requests evenly rather than track actual usage, but enough to make
+ *   a demo run deterministic. Raise the batch size and drop the interval on
+ *   a paid tier.
+ */
+const groqCall = (name, position, maxTokens, temperature, model = MODEL, batchIntervalMs = 21000) => ({
   parameters: {
     method: 'POST',
     url: GROQ_URL,
@@ -63,7 +74,8 @@ const groqCall = (name, position, maxTokens, temperature, model = MODEL) => ({
     specifyBody: 'json',
     jsonBody: '={{ JSON.stringify($json.groq_body) }}',
     options: {
-      timeout: 30000,
+      timeout: 60000,
+      batching: { batch: { batchSize: 1, batchInterval: batchIntervalMs } },
       response: { response: { neverError: false } },
     },
   },
@@ -73,9 +85,9 @@ const groqCall = (name, position, maxTokens, temperature, model = MODEL) => ({
   typeVersion: 4.2,
   position,
   retryOnFail: true,
-  maxTries: 3,
-  waitBetweenTries: 1500,
-  notes: `Groq ${model}, temperature ${temperature}, max_tokens ${maxTokens}. Header Auth credential supplies "Authorization: Bearer <GROQ_API_KEY>".`,
+  maxTries: 5,
+  waitBetweenTries: 15000,
+  notes: `Groq ${model}, temperature ${temperature}, max_tokens ${maxTokens}, one request every ${batchIntervalMs / 1000}s to stay inside the free-tier token budget. Header Auth credential supplies "Authorization: Bearer <GROQ_API_KEY>".`,
 });
 
 /* ------------------------------------------------------------------ nodes */
@@ -396,7 +408,7 @@ return { json: { ...$json, groq_body: {
 } } };`,
     [1200, 190]
   ),
-  groqCall('Groq: Briefing', [1420, 190], 800, 0.2, SUMMARY_MODEL),
+  groqCall('Groq: Briefing', [1420, 190], 800, 0.2, SUMMARY_MODEL, 2000),
   code(
     'Assemble Record',
     `// Step 5 - the structured record a downstream team consumes.
@@ -520,7 +532,12 @@ return { json: {
   /* --- persistence ------------------------------------------------------ */
   code(
     'Collect Records',
-    `// Every branch converges here so one execution yields one reviewable table.
+    `// Every queue branch converges here. Note that n8n runs a node once per
+// incoming connection, so this node shows one run per queue that received a
+// record rather than a single combined table - click through the runs to see
+// all of them. A Merge node would combine them into one, at the cost of six
+// more wires on the canvas; the JSON deliverable in output/records.json is
+// the combined view, so the extra nodes did not earn their place here.
 return $input.all();`,
     [2340, 190],
     'runOnceForAllItems'
@@ -590,6 +607,11 @@ const connections = {
 };
 
 const workflow = {
+  // A stable top-level id: the n8n UI generates one on import, but the CLI
+  // importer (`n8n import:workflow --input=...`) requires it and fails with
+  // a NOT NULL constraint without it. Fixed rather than random so re-importing
+  // updates the same workflow instead of creating duplicates.
+  id: 'arcvault-triage-001',
   name: 'ArcVault - AI Intake & Triage',
   nodes,
   connections,
@@ -597,6 +619,7 @@ const workflow = {
   settings: { executionOrder: 'v1' },
   pinData: {},
   tags: [],
+  versionId: 'v1',
 };
 
 const out = new URL('../n8n/arcvault-triage.workflow.json', import.meta.url);
