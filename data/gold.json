@@ -1,0 +1,10 @@
+{
+  "_note": "Hand-labelled expectations for the five assessment fixtures. Category and destination queue are asserted; priority is reported as a distribution rather than asserted, because Medium vs High on REQ-001 is a genuine judgement call and pinning it would be measuring my opinion, not the model.",
+  "labels": {
+    "REQ-001": { "category": "Bug Report", "destination_queue": "Engineering", "escalated": false },
+    "REQ-002": { "category": "Feature Request", "destination_queue": "Product", "escalated": false },
+    "REQ-003": { "category": "Billing Issue", "destination_queue": "Billing", "escalated": false },
+    "REQ-004": { "category": "Technical Question", "destination_queue": "IT/Security", "escalated": false },
+    "REQ-005": { "category": "Incident/Outage", "destination_queue": "Human-Escalation", "escalated": true }
+  }
+}

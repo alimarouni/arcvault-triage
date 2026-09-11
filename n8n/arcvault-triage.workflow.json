@@ -1,0 +1,784 @@
+{
+  "name": "ArcVault - AI Intake & Triage",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-00",
+      "name": "Manual Trigger (demo run)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "arcvault-intake",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "trigger-01",
+      "name": "Webhook: /arcvault-intake",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        300
+      ],
+      "webhookId": "arcvault-intake-001",
+      "notes": "Production trigger. POST {\"source\":\"email\",\"raw_message\":\"...\"}"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Step 1 - ingestion (demo path). The webhook path carries real traffic;\n// this node replays the five assessment fixtures so the whole workflow can be\n// executed with one click.\nreturn [\n  {\n    \"id\": \"REQ-001\",\n    \"source\": \"email\",\n    \"received_at\": \"2026-02-10T08:14:00Z\",\n    \"from\": \"jsmith@northwind-example.com\",\n    \"raw_message\": \"Hi, I tried logging in this morning and keep getting a 403 error. My account is arcvault.io/user/jsmith. This started after your update last Tuesday.\"\n  },\n  {\n    \"id\": \"REQ-002\",\n    \"source\": \"web_form\",\n    \"received_at\": \"2026-02-10T09:02:00Z\",\n    \"from\": \"compliance@meridian-example.com\",\n    \"raw_message\": \"We'd love to see a bulk export feature for our audit logs. We're a compliance-heavy org and this would save us hours every month.\"\n  },\n  {\n    \"id\": \"REQ-003\",\n    \"source\": \"support_portal\",\n    \"received_at\": \"2026-02-10T11:47:00Z\",\n    \"from\": \"ap@brightline-example.com\",\n    \"raw_message\": \"Invoice #8821 shows a charge of $1,240 but our contract rate is $980/month. Can someone look into this?\"\n  },\n  {\n    \"id\": \"REQ-004\",\n    \"source\": \"email\",\n    \"received_at\": \"2026-02-10T13:21:00Z\",\n    \"from\": \"it@harborpoint-example.com\",\n    \"raw_message\": \"I'm not sure if this is the right place to ask, but is there a way to set up SSO with Okta? We're evaluating switching our auth provider.\"\n  },\n  {\n    \"id\": \"REQ-005\",\n    \"source\": \"web_form\",\n    \"received_at\": \"2026-02-10T19:08:00Z\",\n    \"from\": \"ops@calderon-example.com\",\n    \"raw_message\": \"Your dashboard stopped loading for us around 2pm EST. Checked our end - it's definitely on yours. Multiple users affected.\"\n  }\n].map(json => ({ json }));"
+      },
+      "id": "code-02",
+      "name": "Load 5 Sample Requests",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -340,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// One shape from here on, whichever trigger fired.\nconst b = $json.body ?? $json;\nreturn {\n  json: {\n    id: b.id ?? ('WEB-' + Date.now()),\n    source: b.source ?? 'webhook',\n    received_at: b.received_at ?? new Date().toISOString(),\n    raw_message: String(b.raw_message ?? b.message ?? '').trim(),\n  }\n};"
+      },
+      "id": "code-03",
+      "name": "Normalize Inbound",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        190
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Steps 2 + 3 in one call. Category, priority, confidence and entity\n// extraction are mutually informing, so splitting them would double latency\n// and cost for no accuracy gain.\nconst SYSTEM = \"You are the intake triage analyst for ArcVault, a B2B SaaS platform. You read a single inbound customer message and return one structured triage record.\\n\\nYou are a classifier, not an assistant. You never greet, apologise, ask questions, or propose solutions. You return JSON only.\\n\\n# CATEGORIES (choose exactly one)\\n- \\\"Bug Report\\\"          Something in the product behaves incorrectly for this customer. Reproducible or recently started. Impact is scoped to one account or one user.\\n- \\\"Feature Request\\\"     The product works as designed; the customer wants new or expanded capability.\\n- \\\"Billing Issue\\\"       Invoices, charges, pricing, contract rates, refunds, payment methods, tax.\\n- \\\"Technical Question\\\"  The customer asks whether or how something can be done. No defect is claimed. Includes pre-sales and integration feasibility questions.\\n- \\\"Incident/Outage\\\"     A service is unavailable or degraded and the blast radius is beyond a single user: multiple users, a whole tenant, or a core surface is down.\\n\\n# DISAMBIGUATION RULES (apply in order; first match wins)\\n1. Multi-user or tenant-wide unavailability -> \\\"Incident/Outage\\\", even if the customer calls it a bug.\\n2. Any dispute about an amount, invoice or rate -> \\\"Billing Issue\\\", even if the customer blames a software defect.\\n3. \\\"Can I / is there a way to / does ArcVault support ...?\\\" with no defect claimed -> \\\"Technical Question\\\", even when the answer would be a new feature.\\n4. A defect affecting one identifiable user or account -> \\\"Bug Report\\\".\\n5. Otherwise -> \\\"Feature Request\\\".\\n\\n# PRIORITY RUBRIC\\n- \\\"High\\\"    Work is blocked now, revenue or compliance is exposed, or more than one user is affected.\\n- \\\"Medium\\\"  Meaningful friction with a workaround, or a single blocked user on a non-critical path.\\n- \\\"Low\\\"     Nice to have, informational, or no time pressure expressed or implied.\\nPriority reflects business impact, NOT how emotional the message sounds.\\n\\n# CONFIDENCE RUBRIC (calibrate against these anchors, do not default to 0.9)\\n- 0.95-1.00  The message states the category explicitly and unambiguously; no competing reading exists.\\n- 0.85-0.94  One clear reading; a minor detail is missing but the category is not in doubt.\\n- 0.70-0.84  The most likely reading is clear, but a second category is genuinely defensible.\\n- 0.50-0.69  Two categories fit roughly equally well, or the customer is themselves unsure what they are asking.\\n- 0.00-0.49  The message is too vague, truncated or off-topic to classify.\\nReport the confidence you would defend to a reviewer who can see the message. Over-confidence is a worse failure than under-confidence: a low score routes the ticket to a human, which is safe, while a high wrong score sends it to the wrong queue silently.\\n\\n# ENTITY EXTRACTION\\nExtract ONLY identifiers that literally appear in the message. Never invent, normalise or complete a value. If a field has no value in the message, use null (for scalars) or [] (for lists).\\n- account_id       Account, user or tenant identifier, verbatim (e.g. \\\"arcvault.io/user/jsmith\\\").\\n- invoice_number   Verbatim, including any \\\"#\\\".\\n- error_codes      HTTP status codes or product error codes, as strings (e.g. [\\\"403\\\"]).\\n- amounts          Every monetary figure mentioned, as {\\\"value\\\": <number>, \\\"currency\\\": \\\"USD\\\", \\\"context\\\": \\\"<short label>\\\"}.\\n- product_areas    Product surfaces named or clearly implied (e.g. \\\"authentication\\\", \\\"dashboard\\\", \\\"audit logs\\\", \\\"billing\\\").\\n- affected_users   \\\"single\\\" | \\\"multiple\\\" | \\\"unknown\\\" - based only on what the message states.\\n- first_observed   Any time reference for when the problem started, verbatim (e.g. \\\"last Tuesday\\\", \\\"around 2pm EST\\\"), else null.\\n\\n# URGENCY SIGNAL\\n- urgency_signal   \\\"critical\\\" | \\\"elevated\\\" | \\\"routine\\\" - derived from the message content.\\n- urgency_evidence Array of short verbatim quotes from the message that justify the urgency level. Quote, do not paraphrase. Empty array if the message contains no urgency language.\\n\\n# OTHER FIELDS\\n- core_issue                 ONE sentence, max 25 words, stating the problem or ask in neutral operational language. No pleasantries.\\n- customer_sentiment         \\\"calm\\\" | \\\"frustrated\\\" | \\\"urgent\\\" | \\\"neutral\\\".\\n- ambiguity_notes            If confidence is below 0.85, name the competing category and why, in one sentence. Otherwise null.\\n- suggested_next_action      One concrete first step for the receiving team, max 20 words.\\n\\n# OUTPUT CONTRACT\\nReturn a single JSON object with exactly these keys and no others:\\n{\\n  \\\"category\\\": one of [\\\"Bug Report\\\",\\\"Feature Request\\\",\\\"Billing Issue\\\",\\\"Technical Question\\\",\\\"Incident/Outage\\\"],\\n  \\\"priority\\\": one of [\\\"Low\\\",\\\"Medium\\\",\\\"High\\\"],\\n  \\\"confidence\\\": number between 0 and 1 with two decimals,\\n  \\\"core_issue\\\": string,\\n  \\\"entities\\\": {\\n    \\\"account_id\\\": string|null,\\n    \\\"invoice_number\\\": string|null,\\n    \\\"error_codes\\\": string[],\\n    \\\"amounts\\\": [{\\\"value\\\": number, \\\"currency\\\": string, \\\"context\\\": string}],\\n    \\\"product_areas\\\": string[],\\n    \\\"affected_users\\\": \\\"single\\\"|\\\"multiple\\\"|\\\"unknown\\\",\\n    \\\"first_observed\\\": string|null\\n  },\\n  \\\"urgency_signal\\\": \\\"critical\\\"|\\\"elevated\\\"|\\\"routine\\\",\\n  \\\"urgency_evidence\\\": string[],\\n  \\\"customer_sentiment\\\": \\\"calm\\\"|\\\"frustrated\\\"|\\\"urgent\\\"|\\\"neutral\\\",\\n  \\\"ambiguity_notes\\\": string|null,\\n  \\\"suggested_next_action\\\": string\\n}\\n\\nNo markdown, no code fences, no commentary before or after the JSON.\\n\\n# WORKED EXAMPLE\\nInput:\\nsource: support_portal\\nmessage: \\\"Since Friday the CSV import screen throws ERR_PARSE_1102 whenever I upload a file over 5MB. Smaller files are fine. Only I have tried it so far.\\\"\\n\\nOutput:\\n{\\\"category\\\":\\\"Bug Report\\\",\\\"priority\\\":\\\"Medium\\\",\\\"confidence\\\":0.93,\\\"core_issue\\\":\\\"CSV import fails with ERR_PARSE_1102 for files larger than 5MB.\\\",\\\"entities\\\":{\\\"account_id\\\":null,\\\"invoice_number\\\":null,\\\"error_codes\\\":[\\\"ERR_PARSE_1102\\\"],\\\"amounts\\\":[],\\\"product_areas\\\":[\\\"data import\\\"],\\\"affected_users\\\":\\\"single\\\",\\\"first_observed\\\":\\\"Since Friday\\\"},\\\"urgency_signal\\\":\\\"routine\\\",\\\"urgency_evidence\\\":[],\\\"customer_sentiment\\\":\\\"neutral\\\",\\\"ambiguity_notes\\\":null,\\\"suggested_next_action\\\":\\\"Reproduce a >5MB CSV upload and pull parser logs for ERR_PARSE_1102.\\\"}\";\n\nconst user = [\n  'source: ' + $json.source,\n  'received_at: ' + ($json.received_at ?? 'unknown'),\n  'message: \"\"\"',\n  $json.raw_message,\n  '\"\"\"',\n  '',\n  'Return the triage JSON object now.'\n].join('\\n');\n\nreturn {\n  json: {\n    ...$json,\n    prompt_version: \"triage-v1.2\",\n    groq_body: {\n      model: \"llama-3.3-70b-versatile\",\n      temperature: 0,\n      max_tokens: 900,\n      response_format: { type: 'json_object' },\n      messages: [\n        { role: 'system', content: SYSTEM },\n        { role: 'user', content: user },\n      ],\n    },\n  }\n};"
+      },
+      "id": "code-04",
+      "name": "Build Triage Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        100,
+        190
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.groq_body) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": false
+            }
+          }
+        }
+      },
+      "id": "http-05",
+      "name": "Groq: Triage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        320,
+        190
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "notes": "Groq llama-3.3-70b-versatile, temperature 0, max_tokens 900. Header Auth credential supplies \"Authorization: Bearer <GROQ_API_KEY>\"."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The LLM is an untrusted input source. Enum violations are a hard failure;\n// shape omissions and a confidence returned as 85 instead of 0.85 are repaired.\nconst CATEGORIES = ['Bug Report','Feature Request','Billing Issue','Technical Question','Incident/Outage'];\nconst PRIORITIES = ['Low','Medium','High'];\nconst req = $('Normalize Inbound').item.json;\n\nlet raw;\ntry {\n  const content = $json.choices[0].message.content;\n  raw = typeof content === 'string' ? JSON.parse(content) : content;\n} catch (e) {\n  return { json: { ...req, _schema_error: 'model did not return parsable JSON: ' + e.message } };\n}\n\nconst conf = (v) => {\n  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.]/g, ''));\n  if (!isFinite(n)) return null;\n  return Math.min(1, Math.max(0, Math.round((n > 1 && n <= 100 ? n / 100 : n) * 100) / 100));\n};\n\nconst issues = [];\nif (!CATEGORIES.includes(raw.category)) issues.push('bad category: ' + raw.category);\nif (!PRIORITIES.includes(raw.priority)) issues.push('bad priority: ' + raw.priority);\nif (conf(raw.confidence) === null) issues.push('bad confidence: ' + raw.confidence);\nif (!raw.core_issue) issues.push('core_issue empty');\nif (issues.length) return { json: { ...req, _schema_error: issues.join('; ') } };\n\nconst e = raw.entities ?? {};\nreturn {\n  json: {\n    ...req,\n    prompt_version: $('Build Triage Prompt').item.json.prompt_version,\n    model: $json.model ?? \"llama-3.3-70b-versatile\",\n    tokens_triage: $json.usage?.total_tokens ?? null,\n    triage: {\n      category: raw.category,\n      priority: raw.priority,\n      confidence: conf(raw.confidence),\n      core_issue: raw.core_issue,\n      entities: {\n        account_id: e.account_id ?? null,\n        invoice_number: e.invoice_number ?? null,\n        error_codes: e.error_codes ?? [],\n        amounts: e.amounts ?? [],\n        product_areas: e.product_areas ?? [],\n        affected_users: ['single','multiple','unknown'].includes(e.affected_users) ? e.affected_users : 'unknown',\n        first_observed: e.first_observed ?? null,\n      },\n      urgency_signal: ['critical','elevated','routine'].includes(raw.urgency_signal) ? raw.urgency_signal : 'routine',\n      urgency_evidence: raw.urgency_evidence ?? [],\n      customer_sentiment: raw.customer_sentiment ?? 'neutral',\n      ambiguity_notes: raw.ambiguity_notes ?? null,\n      suggested_next_action: raw.suggested_next_action ?? 'Review and assign an owner.',\n    },\n  }\n};"
+      },
+      "id": "code-06",
+      "name": "Validate Triage Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        190
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Step 4 - deterministic. The LLM decides WHAT the message is; this table\n// decides WHERE it goes. No model call: routing is business policy and must be\n// auditable, testable and changeable without touching a prompt.\nconst SECURITY = /\\b(sso|saml|okta|oauth|scim|authentication|auth|mfa|2fa|security|permissions|encryption)\\b/i;\n\nif ($json._schema_error) {\n  return { json: { ...$json, route: { destination_queue: 'Human-Escalation', routing_rule: 'R-fail-safe',\n    routing_rationale: 'Triage output failed validation; the request is never dropped.' } } };\n}\n\nconst t = $json.triage;\nconst areas = [...(t.entities.product_areas ?? []), t.core_issue ?? ''].join(' ');\n\nconst TABLE = [\n  { id: 'R1-incident-to-engineering', hit: t.category === 'Incident/Outage', queue: 'Engineering',\n    why: 'Service degradation is owned by the on-call engineering rotation.' },\n  { id: 'R2-bug-to-engineering', hit: t.category === 'Bug Report', queue: 'Engineering',\n    why: 'Defects are triaged by engineering regardless of severity.' },\n  { id: 'R3-billing-to-billing', hit: t.category === 'Billing Issue', queue: 'Billing',\n    why: 'Only Billing can inspect contract rates and issue credits.' },\n  { id: 'R4-feature-to-product', hit: t.category === 'Feature Request', queue: 'Product',\n    why: 'Product owns roadmap intake and the customer response.' },\n  { id: 'R5-security-question-to-it-security', hit: t.category === 'Technical Question' && SECURITY.test(areas), queue: 'IT/Security',\n    why: 'Identity and access questions require a security-reviewed answer.' },\n  { id: 'R6-technical-question-to-support', hit: t.category === 'Technical Question', queue: 'Support-Tier1',\n    why: 'General how-to questions are answered by Tier 1 from the knowledge base.' },\n];\n\nconst rule = TABLE.find(r => r.hit) ?? { id: 'R0-default-fallback', queue: 'Support-Tier1',\n  why: 'No rule matched; defaulted to Tier 1 so the request is never dropped.' };\n\nreturn { json: { ...$json, route: { destination_queue: rule.queue, routing_rule: rule.id, routing_rationale: rule.why } } };"
+      },
+      "id": "code-07",
+      "name": "Route by Classification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        190
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Step 6 - three triggers plus one calibration input. Runs before the\n// summary so the briefing can tell the reader the record was held.\nconst THRESHOLD = 0.70;\nconst BILLING_USD = 500;\nconst PENALTY = 0.15;\n\nif ($json._schema_error) {\n  return { json: { ...$json, escalation: { escalated: true, reasons: ['schema_violation: ' + $json._schema_error],\n    confidence_adjusted: 0, destination_queue: 'Human-Escalation', intended_queue: null } } };\n}\n\nconst t = $json.triage;\nconst msg = $json.raw_message;\nconst reasons = [];\n\nconst OUTAGE = [/\\boutage\\b/i, /\\bdown for (all|every|multiple)\\b/i, /\\b(all|every) users?\\b/i,\n  /\\bmultiple users?\\b/i, /\\bwidespread\\b/i, /\\bnobody can\\b/i, /\\bno one can\\b/i,\n  /\\bcompletely (down|unavailable|broken)\\b/i, /\\bservice (is )?(down|unavailable)\\b/i];\n\nconst KEYWORDS = {\n  'Billing Issue': [/\\binvoice\\b/i, /\\bcharge[ds]?\\b/i, /\\bbilling\\b/i, /\\brefund\\b/i, /\\bcontract rate\\b/i, /\\$\\s?[\\d,]+/],\n  'Incident/Outage': OUTAGE,\n  'Bug Report': [/\\berror\\b/i, /\\b[45]\\d{2}\\b/, /\\bbroken\\b/i, /\\bnot working\\b/i, /\\bfails?\\b/i, /\\bbug\\b/i],\n  'Feature Request': [/\\bwe'?d love\\b/i, /\\bfeature\\b/i, /\\bability to\\b/i, /\\bplease add\\b/i, /\\bwould be (great|nice|useful)\\b/i, /\\bsupport for\\b/i],\n  'Technical Question': [/\\bis there a way\\b/i, /\\bhow (do|can|would) (i|we)\\b/i, /\\bdoes .* support\\b/i, /\\bcan we\\b/i, /\\bevaluating\\b/i, /\\bnot sure if\\b/i],\n};\n\n// C1 - calibration cross-check: a self-reported confidence is a token\n// prediction, not evidence. Penalise it when cheap lexical evidence disagrees.\nconst evidence = Object.entries(KEYWORDS).filter(([, ps]) => ps.some(p => p.test(msg))).map(([c]) => c);\nlet confidence = t.confidence;\nif (evidence.length && !evidence.includes(t.category)) {\n  confidence = Math.max(0, Math.round((confidence - PENALTY) * 100) / 100);\n  reasons.push('calibration_mismatch: lexical evidence suggests ' + evidence.join('/') +\n    ' but model chose ' + t.category + '; confidence reduced to ' + confidence.toFixed(2));\n}\n\n// E1 - low confidence\nif (confidence < THRESHOLD) reasons.push('low_confidence: ' + confidence.toFixed(2) + ' is below the ' + THRESHOLD + ' threshold');\n\n// E2 - blast radius\nconst hit = OUTAGE.find(p => p.test(msg));\nif (hit) reasons.push('blast_radius: message matches outage language (' + hit.source + ') - needs an incident owner, not a queue');\nelse if (t.entities.affected_users === 'multiple') reasons.push('blast_radius: model reported multiple affected users');\n\n// E3 - financial exposure on the DISPUTED amount, not the invoice total\nconst vals = (t.entities.amounts ?? []).map(a => Math.abs(Number(a.value))).filter(n => isFinite(n));\nconst disputed = vals.length === 0 ? 0 : vals.length === 1 ? vals[0] : Math.max(...vals) - Math.min(...vals);\nif (t.category === 'Billing Issue' && disputed >= BILLING_USD)\n  reasons.push('financial_exposure: disputed amount $' + disputed.toLocaleString() + ' meets the $' + BILLING_USD + ' review threshold');\n\nconst escalated = reasons.some(r => !r.startsWith('calibration_mismatch'));\n\nreturn { json: { ...$json, escalation: { escalated, reasons, confidence_adjusted: confidence,\n  destination_queue: escalated ? 'Human-Escalation' : $json.route.destination_queue,\n  intended_queue: $json.route.destination_queue } } };"
+      },
+      "id": "code-08",
+      "name": "Escalation Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        190
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The summary is written AFTER routing so it can address the team that\n// actually receives it, and can say plainly when a record was held for review.\nconst SYSTEM = \"You write the handoff note that appears at the top of a ticket when it lands in a queue at ArcVault. Your reader is an on-shift engineer, billing analyst or product manager who has 10 seconds and has never seen this customer before.\\n\\nWrite exactly 2-3 sentences, in this order:\\n1. What happened and to whom, including any identifier that matters (account, invoice, error code).\\n2. Why it landed in this queue at this priority.\\n3. Only if the record is flagged for human review: state in plain words what a human must decide before the team acts.\\n\\nRules:\\n- Address the receiving queue directly by name in the first clause.\\n- Use only facts present in the triage record. Never invent detail, never guess a cause, never promise a resolution time.\\n- No greetings, no sign-off, no bullet points, no markdown.\\n- Plain operational English. Under 70 words total.\\n- If the record is flagged for human review, do not state the category as settled - say what the system believed and why it was held.\\n\\nReturn JSON only: {\\\"summary\\\": \\\"<your 2-3 sentences>\\\"}\";\nconst e = $json.escalation;\nconst t = $json.triage ?? {};\n\nconst user = [\n  'TRIAGE RECORD',\n  'destination_queue: ' + e.destination_queue,\n  'escalated_for_human_review: ' + e.escalated,\n  'escalation_reasons: ' + JSON.stringify(e.reasons),\n  'category: ' + (t.category ?? 'UNKNOWN - triage failed'),\n  'priority: ' + (t.priority ?? 'High'),\n  'confidence: ' + e.confidence_adjusted,\n  'core_issue: ' + (t.core_issue ?? 'Automated triage failed for this message.'),\n  'entities: ' + JSON.stringify(t.entities ?? {}),\n  'urgency_signal: ' + (t.urgency_signal ?? 'elevated'),\n  'suggested_next_action: ' + (t.suggested_next_action ?? 'Classify manually.'),\n  '',\n  'ORIGINAL MESSAGE (for tone and detail only, do not add new facts)',\n  '\"\"\"', $json.raw_message, '\"\"\"',\n  '',\n  'Return the summary JSON now.'\n].join('\\n');\n\nreturn { json: { ...$json, groq_body: {\n  model: \"llama-3.3-70b-versatile\", temperature: 0.2, max_tokens: 220,\n  response_format: { type: 'json_object' },\n  messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }],\n} } };"
+      },
+      "id": "code-09",
+      "name": "Build Briefing Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        190
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.groq_body) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": false
+            }
+          }
+        }
+      },
+      "id": "http-10",
+      "name": "Groq: Briefing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1420,
+        190
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "notes": "Groq llama-3.3-70b-versatile, temperature 0.2, max_tokens 220. Header Auth credential supplies \"Authorization: Bearer <GROQ_API_KEY>\"."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Step 5 - the structured record a downstream team consumes.\nconst src = $('Escalation Check').item.json;\nconst t = src.triage ?? {};\nconst e = src.escalation;\nconst r = src.route ?? {};\n\nlet summary;\ntry {\n  summary = JSON.parse($json.choices[0].message.content).summary;\n} catch {\n  summary = e.destination_queue + ': ' + (t.core_issue ?? 'Triage failed.') +\n    ' Priority ' + (t.priority ?? 'High') + ' (confidence ' + e.confidence_adjusted + ').';\n}\n\nconst SLA = e.destination_queue === 'Human-Escalation' ? 1 : ({ High: 4, Medium: 24, Low: 72 }[t.priority] ?? 24);\n\n// Content-addressed id so a re-delivered message is idempotent. n8n's Code\n// sandbox blocks node builtins, so this is a plain FNV-1a rather than SHA-256;\n// the Node implementation uses SHA-256 and the ids are therefore not\n// comparable across the two runtimes - noted in ARCHITECTURE.md.\nconst fnv = (s) => {\n  let h = 0x811c9dc5;\n  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }\n  return h.toString(16).padStart(8, '0');\n};\nconst key = src.source + '|' + src.raw_message;\nconst hash = fnv(key) + fnv(key.split('').reverse().join(''));\n\nreturn { json: {\n  record_id: 'rec_' + hash,\n  request_id: src.id,\n  source: src.source,\n  received_at: src.received_at,\n  processed_at: new Date().toISOString(),\n  raw_message: src.raw_message,\n\n  category: t.category ?? null,\n  priority: t.priority ?? 'High',\n  confidence: t.confidence ?? 0,\n  confidence_adjusted: e.confidence_adjusted,\n\n  core_issue: t.core_issue ?? null,\n  entities: t.entities ?? null,\n  urgency_signal: t.urgency_signal ?? 'elevated',\n  urgency_evidence: t.urgency_evidence ?? [],\n  customer_sentiment: t.customer_sentiment ?? 'neutral',\n  ambiguity_notes: t.ambiguity_notes ?? null,\n  suggested_next_action: t.suggested_next_action ?? 'Classify manually.',\n\n  destination_queue: e.destination_queue,\n  intended_queue: e.intended_queue,\n  routing_rule: r.routing_rule ?? 'R-fail-safe',\n  routing_rationale: r.routing_rationale ?? null,\n  escalated_for_human_review: e.escalated,\n  escalation_reasons: e.reasons,\n  sla_target_hours: SLA,\n\n  summary,\n  pipeline: {\n    prompt_version: src.prompt_version ?? \"triage-v1.2\",\n    model: src.model ?? \"llama-3.3-70b-versatile\",\n    llm_calls: 2,\n    orchestrator: 'n8n',\n    schema_error: src._schema_error ?? null,\n  },\n} };"
+      },
+      "id": "code-11",
+      "name": "Assemble Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1640,
+        190
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cond-0",
+                    "leftValue": "={{ $json.destination_queue }}",
+                    "rightValue": "Human-Escalation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Human-Escalation"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cond-1",
+                    "leftValue": "={{ $json.destination_queue }}",
+                    "rightValue": "Engineering",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Engineering"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cond-2",
+                    "leftValue": "={{ $json.destination_queue }}",
+                    "rightValue": "Billing",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Billing"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cond-3",
+                    "leftValue": "={{ $json.destination_queue }}",
+                    "rightValue": "Product",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Product"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cond-4",
+                    "leftValue": "={{ $json.destination_queue }}",
+                    "rightValue": "IT/Security",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "IT/Security"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cond-5",
+                    "leftValue": "={{ $json.destination_queue }}",
+                    "rightValue": "Support-Tier1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Support-Tier1"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Unrouted"
+        }
+      },
+      "id": "switch-12",
+      "name": "Switch: Destination Queue",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1860,
+        190
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "noop-13",
+      "name": "Human-Escalation Queue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2100,
+        -140
+      ],
+      "notesInFlow": true
+    },
+    {
+      "parameters": {},
+      "id": "noop-14",
+      "name": "Engineering Queue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2100,
+        -20
+      ],
+      "notesInFlow": true
+    },
+    {
+      "parameters": {},
+      "id": "noop-15",
+      "name": "Billing Queue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2100,
+        100
+      ],
+      "notesInFlow": true
+    },
+    {
+      "parameters": {},
+      "id": "noop-16",
+      "name": "Product Queue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2100,
+        220
+      ],
+      "notesInFlow": true
+    },
+    {
+      "parameters": {},
+      "id": "noop-17",
+      "name": "IT/Security Queue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2100,
+        340
+      ],
+      "notesInFlow": true
+    },
+    {
+      "parameters": {},
+      "id": "noop-18",
+      "name": "Support-Tier1 Queue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2100,
+        460
+      ],
+      "notesInFlow": true
+    },
+    {
+      "parameters": {},
+      "id": "noop-19",
+      "name": "Unrouted (should be empty)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2100,
+        580
+      ],
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Every branch converges here so one execution yields one reviewable table.\nreturn $input.all();"
+      },
+      "id": "code-20",
+      "name": "Collect Records",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2340,
+        190
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://webhook.site/REPLACE-WITH-YOUR-UUID",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ArcVault-Queue",
+              "value": "={{ $json.destination_queue }}"
+            },
+            {
+              "name": "X-ArcVault-Escalated",
+              "value": "={{ $json.escalated_for_human_review }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "http-21",
+      "name": "Mirror to Downstream (webhook.site)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2560,
+        190
+      ],
+      "disabled": true,
+      "notes": "Disabled by default. Paste your webhook.site unique URL and enable to demo a downstream handoff."
+    }
+  ],
+  "connections": {
+    "Manual Trigger (demo run)": {
+      "main": [
+        [
+          {
+            "node": "Load 5 Sample Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load 5 Sample Requests": {
+      "main": [
+        [
+          {
+            "node": "Normalize Inbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: /arcvault-intake": {
+      "main": [
+        [
+          {
+            "node": "Normalize Inbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Inbound": {
+      "main": [
+        [
+          {
+            "node": "Build Triage Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Triage Prompt": {
+      "main": [
+        [
+          {
+            "node": "Groq: Triage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq: Triage": {
+      "main": [
+        [
+          {
+            "node": "Validate Triage Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Triage Output": {
+      "main": [
+        [
+          {
+            "node": "Route by Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Classification": {
+      "main": [
+        [
+          {
+            "node": "Escalation Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalation Check": {
+      "main": [
+        [
+          {
+            "node": "Build Briefing Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Briefing Prompt": {
+      "main": [
+        [
+          {
+            "node": "Groq: Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq: Briefing": {
+      "main": [
+        [
+          {
+            "node": "Assemble Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble Record": {
+      "main": [
+        [
+          {
+            "node": "Switch: Destination Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: Destination Queue": {
+      "main": [
+        [
+          {
+            "node": "Human-Escalation Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Engineering Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Billing Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Product Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IT/Security Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Support-Tier1 Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unrouted (should be empty)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human-Escalation Queue": {
+      "main": [
+        [
+          {
+            "node": "Collect Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Engineering Queue": {
+      "main": [
+        [
+          {
+            "node": "Collect Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Billing Queue": {
+      "main": [
+        [
+          {
+            "node": "Collect Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Product Queue": {
+      "main": [
+        [
+          {
+            "node": "Collect Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IT/Security Queue": {
+      "main": [
+        [
+          {
+            "node": "Collect Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Support-Tier1 Queue": {
+      "main": [
+        [
+          {
+            "node": "Collect Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unrouted (should be empty)": {
+      "main": [
+        [
+          {
+            "node": "Collect Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Records": {
+      "main": [
+        [
+          {
+            "node": "Mirror to Downstream (webhook.site)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": []
+}

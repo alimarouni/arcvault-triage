@@ -1,0 +1,63 @@
+[
+  {
+    "record_id": "rec_94a3d353c07451fb",
+    "request_id": "REQ-005",
+    "source": "web_form",
+    "received_at": "2026-02-10T19:08:00Z",
+    "processed_at": "2026-09-11T13:54:12.176Z",
+    "raw_message": "Your dashboard stopped loading for us around 2pm EST. Checked our end - it's definitely on yours. Multiple users affected.",
+    "category": "Incident/Outage",
+    "priority": "High",
+    "confidence": 0.94,
+    "confidence_adjusted": 0.94,
+    "category_scores": {
+      "Incident/Outage": 0.94,
+      "Technical Question": 0.03,
+      "Bug Report": 0.02,
+      "Feature Request": 0.01,
+      "Billing Issue": 0
+    },
+    "runner_up_category": "Technical Question",
+    "decision_margin": 0.91,
+    "core_issue": "Dashboard fails to load for multiple users since around 2pm EST.",
+    "entities": {
+      "account_id": null,
+      "invoice_number": null,
+      "error_codes": [],
+      "amounts": [],
+      "product_areas": [
+        "dashboard"
+      ],
+      "affected_users": "multiple",
+      "first_observed": "around 2pm EST"
+    },
+    "urgency_signal": "critical",
+    "urgency_evidence": [
+      "Your dashboard stopped loading for us around 2pm EST.",
+      "Multiple users affected."
+    ],
+    "customer_sentiment": "frustrated",
+    "ambiguity_notes": null,
+    "suggested_next_action": "Investigate dashboard service outage and restore access promptly.",
+    "destination_queue": "Human-Escalation",
+    "intended_queue": "Engineering",
+    "routing_rule": "R1-incident-to-engineering",
+    "routing_rationale": "Service degradation is owned by the on-call engineering rotation.",
+    "escalated_for_human_review": true,
+    "escalation_reasons": [
+      "blast_radius: message matches outage language (\\bmultiple users?\\b) - needs an incident owner, not a queue"
+    ],
+    "sla_target_hours": 1,
+    "summary": "Human-Escalation queue: Dashboard fails to load for multiple users since around 2pm EST. It landed here as a high‑priority incident/outage needing an incident owner. Human must decide whether to assign an incident owner and confirm the outage scope before the team acts.",
+    "pipeline": {
+      "prompt_version": "triage-v1.3",
+      "model": "openai/gpt-oss-120b",
+      "llm_calls": 2,
+      "total_tokens": 2655,
+      "errors": [],
+      "triage_latency_ms": 57089,
+      "summary_latency_ms": 534,
+      "total_latency_ms": 57623
+    }
+  }
+]

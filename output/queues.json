@@ -1,0 +1,17 @@
+{
+  "Engineering": [
+    "REQ-001"
+  ],
+  "Product": [
+    "REQ-002"
+  ],
+  "Billing": [
+    "REQ-003"
+  ],
+  "IT/Security": [
+    "REQ-004"
+  ],
+  "Human-Escalation": [
+    "REQ-005"
+  ]
+}

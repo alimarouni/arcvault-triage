@@ -1,0 +1,37 @@
+[
+  {
+    "id": "REQ-001",
+    "source": "email",
+    "received_at": "2026-02-10T08:14:00Z",
+    "from": "jsmith@northwind-example.com",
+    "raw_message": "Hi, I tried logging in this morning and keep getting a 403 error. My account is arcvault.io/user/jsmith. This started after your update last Tuesday."
+  },
+  {
+    "id": "REQ-002",
+    "source": "web_form",
+    "received_at": "2026-02-10T09:02:00Z",
+    "from": "compliance@meridian-example.com",
+    "raw_message": "We'd love to see a bulk export feature for our audit logs. We're a compliance-heavy org and this would save us hours every month."
+  },
+  {
+    "id": "REQ-003",
+    "source": "support_portal",
+    "received_at": "2026-02-10T11:47:00Z",
+    "from": "ap@brightline-example.com",
+    "raw_message": "Invoice #8821 shows a charge of $1,240 but our contract rate is $980/month. Can someone look into this?"
+  },
+  {
+    "id": "REQ-004",
+    "source": "email",
+    "received_at": "2026-02-10T13:21:00Z",
+    "from": "it@harborpoint-example.com",
+    "raw_message": "I'm not sure if this is the right place to ask, but is there a way to set up SSO with Okta? We're evaluating switching our auth provider."
+  },
+  {
+    "id": "REQ-005",
+    "source": "web_form",
+    "received_at": "2026-02-10T19:08:00Z",
+    "from": "ops@calderon-example.com",
+    "raw_message": "Your dashboard stopped loading for us around 2pm EST. Checked our end - it's definitely on yours. Multiple users affected."
+  }
+]

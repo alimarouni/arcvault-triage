@@ -1,0 +1,23 @@
+{
+  "name": "arcvault-triage",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Agentic intake & triage pipeline for ArcVault - Valsoft AI Engineer technical assessment",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js --input data/inbound.json",
+    "batch": "node src/index.js --input data/inbound.json",
+    "serve": "node src/server.js",
+    "test": "node --test",
+    "eval": "node scripts/eval.js --runs 3",
+    "build:n8n": "node scripts/build-n8n.js",
+    "edge": "node src/index.js --input data/edge-cases.json --out output/edge-cases --concurrency 1"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2"
+  }
+}

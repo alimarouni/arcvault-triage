@@ -1,0 +1,300 @@
+[
+  {
+    "record_id": "rec_dfce309d46251f80",
+    "request_id": "REQ-001",
+    "source": "email",
+    "received_at": "2026-02-10T08:14:00Z",
+    "processed_at": "2026-09-11T13:52:12.206Z",
+    "raw_message": "Hi, I tried logging in this morning and keep getting a 403 error. My account is arcvault.io/user/jsmith. This started after your update last Tuesday.",
+    "category": "Bug Report",
+    "priority": "Medium",
+    "confidence": 0.94,
+    "confidence_adjusted": 0.94,
+    "category_scores": {
+      "Bug Report": 0.94,
+      "Feature Request": 0.02,
+      "Technical Question": 0.02,
+      "Incident/Outage": 0.02,
+      "Billing Issue": 0
+    },
+    "runner_up_category": "Feature Request",
+    "decision_margin": 0.92,
+    "core_issue": "User cannot log in, receiving a 403 error after recent update.",
+    "entities": {
+      "account_id": "arcvault.io/user/jsmith",
+      "invoice_number": null,
+      "error_codes": [
+        "403"
+      ],
+      "amounts": [],
+      "product_areas": [
+        "authentication"
+      ],
+      "affected_users": "single",
+      "first_observed": "last Tuesday"
+    },
+    "urgency_signal": "routine",
+    "urgency_evidence": [],
+    "customer_sentiment": "neutral",
+    "ambiguity_notes": null,
+    "suggested_next_action": "Investigate 403 error cause for the reported account after last Tuesday update.",
+    "destination_queue": "Engineering",
+    "intended_queue": "Engineering",
+    "routing_rule": "R2-bug-to-engineering",
+    "routing_rationale": "Defects are triaged by engineering regardless of severity.",
+    "escalated_for_human_review": false,
+    "escalation_reasons": [],
+    "sla_target_hours": 24,
+    "summary": "Engineering queue: User arcvault.io/user/jsmith cannot log in, receiving a 403 error after the last Tuesday update. This landed in Engineering at Medium priority as a Bug Report with high confidence. No human review required.",
+    "pipeline": {
+      "prompt_version": "triage-v1.3",
+      "model": "openai/gpt-oss-120b",
+      "llm_calls": 2,
+      "total_tokens": 2609,
+      "errors": [],
+      "triage_latency_ms": 1428,
+      "summary_latency_ms": 576,
+      "total_latency_ms": 2006
+    }
+  },
+  {
+    "record_id": "rec_86c1e95a5a200562",
+    "request_id": "REQ-002",
+    "source": "web_form",
+    "received_at": "2026-02-10T09:02:00Z",
+    "processed_at": "2026-09-11T13:52:13.257Z",
+    "raw_message": "We'd love to see a bulk export feature for our audit logs. We're a compliance-heavy org and this would save us hours every month.",
+    "category": "Feature Request",
+    "priority": "Low",
+    "confidence": 0.94,
+    "confidence_adjusted": 0.94,
+    "category_scores": {
+      "Feature Request": 0.94,
+      "Bug Report": 0.02,
+      "Technical Question": 0.02,
+      "Incident/Outage": 0.02,
+      "Billing Issue": 0
+    },
+    "runner_up_category": "Bug Report",
+    "decision_margin": 0.92,
+    "core_issue": "Customer requests a bulk export feature for audit logs.",
+    "entities": {
+      "account_id": null,
+      "invoice_number": null,
+      "error_codes": [],
+      "amounts": [],
+      "product_areas": [
+        "audit logs"
+      ],
+      "affected_users": "unknown",
+      "first_observed": null
+    },
+    "urgency_signal": "routine",
+    "urgency_evidence": [],
+    "customer_sentiment": "calm",
+    "ambiguity_notes": null,
+    "suggested_next_action": "Log the request for bulk audit log export in the product roadmap.",
+    "destination_queue": "Product",
+    "intended_queue": "Product",
+    "routing_rule": "R4-feature-to-product",
+    "routing_rationale": "Product owns the roadmap intake and the customer response.",
+    "escalated_for_human_review": false,
+    "escalation_reasons": [],
+    "sla_target_hours": 72,
+    "summary": "Product queue: Customer requests a bulk export feature for audit logs. It landed here as a low priority feature request with high confidence. No human review needed.",
+    "pipeline": {
+      "prompt_version": "triage-v1.3",
+      "model": "openai/gpt-oss-120b",
+      "llm_calls": 2,
+      "total_tokens": 2462,
+      "errors": [],
+      "triage_latency_ms": 857,
+      "summary_latency_ms": 192,
+      "total_latency_ms": 1050
+    }
+  },
+  {
+    "record_id": "rec_54fed8cea8bae020",
+    "request_id": "REQ-003",
+    "source": "support_portal",
+    "received_at": "2026-02-10T11:47:00Z",
+    "processed_at": "2026-09-11T13:53:12.161Z",
+    "raw_message": "Invoice #8821 shows a charge of $1,240 but our contract rate is $980/month. Can someone look into this?",
+    "category": "Billing Issue",
+    "priority": "Medium",
+    "confidence": 0.96,
+    "confidence_adjusted": 0.96,
+    "category_scores": {
+      "Billing Issue": 0.96,
+      "Technical Question": 0.02,
+      "Incident/Outage": 0.02,
+      "Bug Report": 0,
+      "Feature Request": 0
+    },
+    "runner_up_category": "Technical Question",
+    "decision_margin": 0.94,
+    "core_issue": "Invoice #8821 charges $1,240, exceeding the contracted $980/month rate.",
+    "entities": {
+      "account_id": null,
+      "invoice_number": "#8821",
+      "error_codes": [],
+      "amounts": [
+        {
+          "value": 1240,
+          "currency": "USD",
+          "context": "charged amount"
+        },
+        {
+          "value": 980,
+          "currency": "USD",
+          "context": "contract rate"
+        }
+      ],
+      "product_areas": [
+        "billing"
+      ],
+      "affected_users": "single",
+      "first_observed": null
+    },
+    "urgency_signal": "routine",
+    "urgency_evidence": [],
+    "customer_sentiment": "frustrated",
+    "ambiguity_notes": null,
+    "suggested_next_action": "Review invoice #8821 and compare to contract rate, then respond with findings.",
+    "destination_queue": "Billing",
+    "intended_queue": "Billing",
+    "routing_rule": "R3-billing-to-billing",
+    "routing_rationale": "Only Billing can inspect contract rates and issue credits.",
+    "escalated_for_human_review": false,
+    "escalation_reasons": [],
+    "sla_target_hours": 24,
+    "summary": "Billing queue: Invoice #8821 charged $1,240, exceeding the contracted $980/month rate for the account. It landed here at medium priority because the discrepancy is a billing issue with high confidence. No human review is required; the team should review the invoice and contract rate and respond with findings.",
+    "pipeline": {
+      "prompt_version": "triage-v1.3",
+      "model": "openai/gpt-oss-120b",
+      "llm_calls": 2,
+      "total_tokens": 2676,
+      "errors": [],
+      "triage_latency_ms": 58323,
+      "summary_latency_ms": 580,
+      "total_latency_ms": 58904
+    }
+  },
+  {
+    "record_id": "rec_cc66e4463d9640a1",
+    "request_id": "REQ-004",
+    "source": "email",
+    "received_at": "2026-02-10T13:21:00Z",
+    "processed_at": "2026-09-11T13:53:14.553Z",
+    "raw_message": "I'm not sure if this is the right place to ask, but is there a way to set up SSO with Okta? We're evaluating switching our auth provider.",
+    "category": "Technical Question",
+    "priority": "Low",
+    "confidence": 0.94,
+    "confidence_adjusted": 0.94,
+    "category_scores": {
+      "Technical Question": 0.94,
+      "Incident/Outage": 0.04,
+      "Feature Request": 0.02,
+      "Bug Report": 0,
+      "Billing Issue": 0
+    },
+    "runner_up_category": "Incident/Outage",
+    "decision_margin": 0.9,
+    "core_issue": "Customer asks if ArcVault supports SSO integration with Okta.",
+    "entities": {
+      "account_id": null,
+      "invoice_number": null,
+      "error_codes": [],
+      "amounts": [],
+      "product_areas": [
+        "authentication"
+      ],
+      "affected_users": "unknown",
+      "first_observed": null
+    },
+    "urgency_signal": "routine",
+    "urgency_evidence": [],
+    "customer_sentiment": "neutral",
+    "ambiguity_notes": null,
+    "suggested_next_action": "Send SSO with Okta documentation and integration steps.",
+    "destination_queue": "IT/Security",
+    "intended_queue": "IT/Security",
+    "routing_rule": "R5-security-question-to-it-security",
+    "routing_rationale": "Identity and access questions require a security-reviewed answer.",
+    "escalated_for_human_review": false,
+    "escalation_reasons": [],
+    "sla_target_hours": 72,
+    "summary": "IT/Security queue: Customer asks if ArcVault supports SSO integration with Okta. It landed here as a low-priority technical question. No human review needed.",
+    "pipeline": {
+      "prompt_version": "triage-v1.3",
+      "model": "openai/gpt-oss-120b",
+      "llm_calls": 2,
+      "total_tokens": 2479,
+      "errors": [],
+      "triage_latency_ms": 1946,
+      "summary_latency_ms": 445,
+      "total_latency_ms": 2392
+    }
+  },
+  {
+    "record_id": "rec_94a3d353c07451fb",
+    "request_id": "REQ-005",
+    "source": "web_form",
+    "received_at": "2026-02-10T19:08:00Z",
+    "processed_at": "2026-09-11T13:54:12.176Z",
+    "raw_message": "Your dashboard stopped loading for us around 2pm EST. Checked our end - it's definitely on yours. Multiple users affected.",
+    "category": "Incident/Outage",
+    "priority": "High",
+    "confidence": 0.94,
+    "confidence_adjusted": 0.94,
+    "category_scores": {
+      "Incident/Outage": 0.94,
+      "Technical Question": 0.03,
+      "Bug Report": 0.02,
+      "Feature Request": 0.01,
+      "Billing Issue": 0
+    },
+    "runner_up_category": "Technical Question",
+    "decision_margin": 0.91,
+    "core_issue": "Dashboard fails to load for multiple users since around 2pm EST.",
+    "entities": {
+      "account_id": null,
+      "invoice_number": null,
+      "error_codes": [],
+      "amounts": [],
+      "product_areas": [
+        "dashboard"
+      ],
+      "affected_users": "multiple",
+      "first_observed": "around 2pm EST"
+    },
+    "urgency_signal": "critical",
+    "urgency_evidence": [
+      "Your dashboard stopped loading for us around 2pm EST.",
+      "Multiple users affected."
+    ],
+    "customer_sentiment": "frustrated",
+    "ambiguity_notes": null,
+    "suggested_next_action": "Investigate dashboard service outage and restore access promptly.",
+    "destination_queue": "Human-Escalation",
+    "intended_queue": "Engineering",
+    "routing_rule": "R1-incident-to-engineering",
+    "routing_rationale": "Service degradation is owned by the on-call engineering rotation.",
+    "escalated_for_human_review": true,
+    "escalation_reasons": [
+      "blast_radius: message matches outage language (\\bmultiple users?\\b) - needs an incident owner, not a queue"
+    ],
+    "sla_target_hours": 1,
+    "summary": "Human-Escalation queue: Dashboard fails to load for multiple users since around 2pm EST. It landed here as a high‑priority incident/outage needing an incident owner. Human must decide whether to assign an incident owner and confirm the outage scope before the team acts.",
+    "pipeline": {
+      "prompt_version": "triage-v1.3",
+      "model": "openai/gpt-oss-120b",
+      "llm_calls": 2,
+      "total_tokens": 2655,
+      "errors": [],
+      "triage_latency_ms": 57089,
+      "summary_latency_ms": 534,
+      "total_latency_ms": 57623
+    }
+  }
+]
