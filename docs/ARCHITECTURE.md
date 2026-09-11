@@ -299,6 +299,30 @@ is the number you actually want before shipping. Priority is reported as a
 distribution rather than asserted, because Medium vs High on REQ-001 is a
 genuine judgement call and pinning it would measure my opinion, not the model.
 
+### The n8n implementation, run independently
+
+`output/n8n-records.json` holds the records produced by executing the n8n
+workflow itself (`Success in 1m 53s`, all 22 nodes green). Both
+implementations agree on **category and destination queue for all five
+inputs**:
+
+| # | Category | Queue | Node run | n8n run |
+|---|---|---|---|---|
+| REQ-001 | Bug Report | Engineering | Medium | **High** |
+| REQ-002 | Feature Request | Product | Low | Low |
+| REQ-003 | Billing Issue | Billing | Medium | Medium |
+| REQ-004 | Technical Question | IT/Security | Low | Low |
+| REQ-005 | Incident/Outage | Human-Escalation | High | High |
+
+The one disagreement is REQ-001's priority, and it is the boundary case
+already flagged above: a single user blocked on login sits genuinely between
+"meaningful friction" and "work is blocked now". Two runs of the same prompt
+at temperature 0 landed on either side of it. That is worth stating plainly
+rather than hiding — it is the least stable output in the system, it is the
+one field the gold file deliberately does not assert, and the fix is a
+sharper rubric boundary for the single-blocked-user case rather than a
+retry.
+
 Five adversarial cases I added, because the assessment set contains no
 genuinely ambiguous input and "edge cases handled" is an explicit criterion:
 
