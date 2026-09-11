@@ -104,22 +104,3 @@ curl -X POST http://localhost:5678/webhook-test/arcvault-intake \
 
 Click **Listen for test event** on the webhook node first, then send the
 request.
-
----
-
-## Screenshots to capture
-
-Six shots, in this order:
-
-1. **The full canvas**, zoomed to fit — shows all 22 nodes and the fan-out.
-2. **`Groq: Triage` output** on REQ-005 — expand the JSON to show
-   `category_scores`, entities and `urgency_evidence` with its verbatim quotes.
-3. **`Route by Classification` output** — shows `routing_rule` and
-   `routing_rationale`.
-4. **`Escalation Check` output on REQ-005** — the `escalation_reasons` array
-   with the blast-radius reason spelled out.
-5. **`Assemble Record` output** — the complete structured record, all fields.
-6. **`Switch: Destination Queue`** — the branch counts, showing REQ-005 going
-   to Human-Escalation while the other four fan out normally.
-
-Save them into `screenshots/` as `01-canvas.png` … `06-switch.png`.
