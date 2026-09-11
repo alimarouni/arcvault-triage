@@ -270,6 +270,24 @@ Five assessment fixtures, `openai/gpt-oss-120b` on Groq, prompt `triage-v1.3`:
 pipeline errors. ~2,576 tokens and ~1.5s of model time per record across two
 calls.
 
+**Repeated three times per fixture** (`npm run eval`,
+[`output/eval-results.json`](../output/eval-results.json)):
+
+| Metric | Result |
+|---|---|
+| Category accuracy (modal answer vs hand label) | **100%** |
+| Queue accuracy | **100%** |
+| Escalation accuracy | **100%** |
+| Category consistency across 3 identical runs | **100%** |
+
+Accuracy and consistency are reported separately on purpose. A prompt can be
+100% accurate on the modal answer and still be unusable if it flips between
+two categories run to run, because every flip is a ticket in the wrong queue —
+and at temperature 0 any disagreement is the model's own nondeterminism, which
+is the number you actually want before shipping. Priority is reported as a
+distribution rather than asserted, because Medium vs High on REQ-001 is a
+genuine judgement call and pinning it would measure my opinion, not the model.
+
 Five adversarial cases I added, because the assessment set contains no
 genuinely ambiguous input and "edge cases handled" is an explicit criterion:
 

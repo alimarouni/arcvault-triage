@@ -1,0 +1,82 @@
+{
+  "prompt_version": "triage-v1.3",
+  "model": "openai/gpt-oss-120b",
+  "runs_per_fixture": 3,
+  "ran_at": "2026-09-11T14:01:29.855Z",
+  "category_accuracy": 1,
+  "queue_accuracy": 1,
+  "escalation_accuracy": 1,
+  "category_consistency": 1,
+  "rows": [
+    {
+      "id": "REQ-001",
+      "expected_category": "Bug Report",
+      "modal_category": "Bug Report",
+      "accurate": "PASS",
+      "category_consistency": "100%",
+      "modal_queue": "Engineering",
+      "queue_ok": "PASS",
+      "queue_consistency": "100%",
+      "escalation_ok": "PASS",
+      "priorities": "Medium",
+      "mean_conf": "0.94",
+      "mean_adj_conf": "0.94"
+    },
+    {
+      "id": "REQ-002",
+      "expected_category": "Feature Request",
+      "modal_category": "Feature Request",
+      "accurate": "PASS",
+      "category_consistency": "100%",
+      "modal_queue": "Product",
+      "queue_ok": "PASS",
+      "queue_consistency": "100%",
+      "escalation_ok": "PASS",
+      "priorities": "Low",
+      "mean_conf": "0.94",
+      "mean_adj_conf": "0.94"
+    },
+    {
+      "id": "REQ-003",
+      "expected_category": "Billing Issue",
+      "modal_category": "Billing Issue",
+      "accurate": "PASS",
+      "category_consistency": "100%",
+      "modal_queue": "Billing",
+      "queue_ok": "PASS",
+      "queue_consistency": "100%",
+      "escalation_ok": "PASS",
+      "priorities": "Medium",
+      "mean_conf": "0.95",
+      "mean_adj_conf": "0.95"
+    },
+    {
+      "id": "REQ-004",
+      "expected_category": "Technical Question",
+      "modal_category": "Technical Question",
+      "accurate": "PASS",
+      "category_consistency": "100%",
+      "modal_queue": "IT/Security",
+      "queue_ok": "PASS",
+      "queue_consistency": "100%",
+      "escalation_ok": "PASS",
+      "priorities": "Low",
+      "mean_conf": "0.93",
+      "mean_adj_conf": "0.93"
+    },
+    {
+      "id": "REQ-005",
+      "expected_category": "Incident/Outage",
+      "modal_category": "Incident/Outage",
+      "accurate": "PASS",
+      "category_consistency": "100%",
+      "modal_queue": "Human-Escalation",
+      "queue_ok": "PASS",
+      "queue_consistency": "100%",
+      "escalation_ok": "PASS",
+      "priorities": "High",
+      "mean_conf": "0.93",
+      "mean_adj_conf": "0.93"
+    }
+  ]
+}

@@ -225,11 +225,14 @@ is only writable because routing already happened.
    outage patterns and the `$500` threshold are business policy that an ops
    lead should own. They are constants in `escalation.js` today because a
    config service is not the interesting part of this exercise.
-4. **Split the priority judgement out and measure it separately.** Priority
-   was the least stable field across runs (REQ-001 moved between Medium and
-   High). That is defensible — a single blocked user genuinely sits on the
-   boundary — but "defensible" should be replaced by "measured, and stable at
-   the boundary I chose".
+4. **Split the priority judgement out and measure it separately.** Priority is
+   the field I trust least. Across the controlled eval (3 runs per fixture) it
+   was perfectly stable, but between separate batch runs I saw REQ-001 move
+   between Medium and High. That is a defensible boundary — one blocked user
+   on a login path genuinely sits between the two rubric bands — but the gold
+   file deliberately does not assert priority, which means it is currently the
+   one output I am not measuring. Either the rubric gets a sharper boundary
+   for the single-blocked-user case, or priority gets its own labelled set.
 5. **Test the prompt against adversarial input as a matter of routine.**
    `EDGE-004` is a prompt-injection attempt that instructs the classifier to
    file a total outage as a Low-priority feature request. The current prompt

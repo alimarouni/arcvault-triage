@@ -25,6 +25,12 @@ the prompts and the routing policy exist in exactly one place.
 5/5 against the hand labels in [`data/gold.json`](data/gold.json), zero
 pipeline errors. Full records: [`output/records.json`](output/records.json).
 
+Repeated 3× per fixture (`npm run eval`): **100% category accuracy, 100% queue
+accuracy, 100% escalation accuracy, 100% run-to-run consistency.** Accuracy and
+consistency are measured separately, because a prompt can be accurate on the
+modal answer and still flip between runs — and every flip is a ticket in the
+wrong queue.
+
 Plus five adversarial cases I added ([`data/edge-cases.json`](data/edge-cases.json)),
 because the assessment set contains no genuinely ambiguous input — including a
 **prompt-injection attempt**, which the classifier ignores.
